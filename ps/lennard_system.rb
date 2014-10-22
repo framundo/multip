@@ -7,12 +7,13 @@ class LennardSystem
   GATE = 10 # m
   EPS = 1.0 # m
 
-  RADIOUS = 5 # m
-  VELOCITY = 10 # m/s
+  RADIOUS = 2 # m
+  VELOCITY = 10.0 # m/s
   MASS = 10.0 # kg
   DELTA_T = 0.001
   DELTA_T_2 = DELTA_T ** 2
   RM = 1.0
+  CUT_R = 5.0
 
   def initialize(n)
     @particles = []
@@ -29,6 +30,7 @@ class LennardSystem
       p = LennardParticle.new(i + 1, x, y, vx, vy, MASS, RADIOUS, [1.0 - i.to_f/n, i.to_f/n, i.to_f ** 2/n])
       @particles << p
     end
+    @cell_index = cell_index
     @particles.each { |p| force(p) }
     new_particles = @particles.map do |p|
       x = p.x + DELTA_T * p.vx + DELTA_T_2 * p.ax / 2
@@ -55,13 +57,14 @@ class LennardSystem
   def move(time)
     (time / DELTA_T).to_i.times do
       particles_new = []
+      @cell_index = cell_index
       @particles.each { |p| force(p) }
       @particles.each_with_index do |p, i|
         old_p = @particles_old[i]
-        x = 2 * p.x - old_p.x + DELTA_T_2 / p.mass * p.fx
-        vx = x - old_p.x / (2 * DELTA_T)
-        y = 2 * p.y - old_p.y + DELTA_T_2 / p.mass * p.fy
-        vy = y - old_p.y / (2 * DELTA_T)
+        vx = p.vx + DELTA_T * p.fx / p.mass
+        vy = p.vy + DELTA_T * p.fy / p.mass
+        x = p.x + DELTA_T * vx
+        y = p.y + DELTA_T * vy
         particles_new << LennardParticle.new(p.id, x, y, vx, vy, p.mass, p.r, p.c)
       end
       @particles_old = @particles
@@ -69,21 +72,103 @@ class LennardSystem
     end
   end
 
+  def cell_index
+    ci = []
+    height_cells.times do |i|
+      ci[i] = []
+      width_cells.times do |j|
+        ci[i][j] = []
+      end
+    end
+    @particles.each do |particle|
+      row, col = particle_index(particle)
+      ci[row][col] << particle
+    end
+    ci
+  end
+
+  def neighbours(particle)
+    row, col = particle_index(particle)
+    n = Set.new
+    n_rows, n_cols = [], []
+    n_rows << row
+    n_cols << col
+    n_rows << row-1 if row > 0
+    n_rows << row+1 if row < height_cells - 1
+    n_cols << col-1 if col > 0
+    n_cols << col+1 if col < width_cells - 1
+    n_rows.each do |r|
+      n_cols.each do |c|
+        particles = @cell_index[r][c]
+        particles.each do |p|
+          n << p if (particle != p) && particle.distance(p) <= CUT_R
+        end
+      end
+    end
+    n
+  end
+
+  def particle_index(particle)
+    [ (particle.y / cell_height).to_i, (particle.x / width_cells).to_i ]
+  end
+
   def force(p)
     p.fx = 0
     p.fy = 0
-    @particles.each do |p2|
+    vector_p = Vector[p.x, p.y]
+    neighbours(p).each do |p2|
       next if p == p2
-      delta_x = (p.x - p2.x)
-      delta_y = (p.y - p2.y)
-      p.fx += 12 * EPS / RM * ((RM / delta_x) ** 13 - (RM / delta_x) ** 7) #if delta_x.abs < R && delta_x.abs > RMIN
-      p.fy += 12 * EPS / RM * ((RM / delta_y) ** 13 - (RM / delta_y) ** 7) #if delta_y.abs < R && delta_y.abs > RMIN
+      r = [p.distance(p2), RADIOUS * 2].max
+      next if r > CUT_R
+      vector_p2 = Vector[p2.x, p2.y]
+      if r != 0
+        force = 12 * EPS / RM * ((RM / r) ** 13 - (RM / r) ** 7)
+        aux = vector_p.inner_product(vector_p2)/(vector_p.magnitude * vector_p2.magnitude)
+        aux = 1 if aux > 1
+        aux = -1 if aux < -1
+        tita = Math.acos(aux)
+        p.fx += force * Math.cos(tita)
+        p.fy += force * Math.sin(tita)
+      end
     end
     [p.fx, p.fy]
   end
 
+  def height_cells
+    (HEIGHT.to_f / CUT_R).floor
+  end
+
+  def width_cells
+    (WIDTH.to_f / CUT_R).floor
+  end
+
+  def cell_width
+    WIDTH / width_cells
+  end
+
+  def cell_height
+    HEIGHT / height_cells
+  end
+
   def fraction
     @particles.select { |p| p.x > WIDTH/2 }.size.to_f / @particles.size
+  end
+
+  def potential
+    potential = 0
+    @particles.each do |p|
+      @particles.each do |p2|
+        next if p.id == p2.id
+        r = [p.distance(p2), 2 * RADIOUS].max
+        next if r > CUT_R
+        potential += EPS * ((RM / r) ** 12 - 2 * (RM / r) ** 6)
+      end
+    end
+    potential
+  end
+
+  def kinematik
+    @particles.reduce(0) { |a, e| a + e.kinematik }
   end
 
 end
