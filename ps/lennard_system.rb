@@ -5,12 +5,12 @@ class LennardSystem
   WIDTH = 400 # m
   HEIGHT = 200 # m
   GATE = 10 # m
-  EPS = 1.0 # m
+  EPS = 2.0 # m
 
   RADIOUS = 2 # m
   VELOCITY = 10.0 # m/s
-  MASS = 10.0 # kg
-  DELTA_T = 0.001
+  MASS = 0.1 # kg
+  DELTA_T = 0.0001
   DELTA_T_2 = DELTA_T ** 2
   RM = 1.0
   CUT_R = 5.0
@@ -115,22 +115,18 @@ class LennardSystem
   def force(p)
     p.fx = 0
     p.fy = 0
-    vector_p = Vector[p.x, p.y]
     neighbours(p).each do |p2|
       next if p == p2
-      r = [p.distance(p2), RADIOUS * 2].max
+      r = p.distance(p2)
       next if r > CUT_R
-      vector_p2 = Vector[p2.x, p2.y]
       if r != 0
-        force = 12 * EPS / RM * ((RM / r) ** 13 - (RM / r) ** 7)
-        aux = vector_p.inner_product(vector_p2)/(vector_p.magnitude * vector_p2.magnitude)
-        aux = 1 if aux > 1
-        aux = -1 if aux < -1
-        tita = Math.acos(aux)
+        force = 12.0 * EPS / RM * ((RM / r) ** 13 - (RM / r) ** 7)
+        tita = Math.atan2(p.y - p2.y, p.x - p2.x)
         p.fx += force * Math.cos(tita)
         p.fy += force * Math.sin(tita)
       end
     end
+    # puts "Force:" + Vector[p.fx, p.fy].magnitude.to_s if (p.fx || p.fy) > 0
     [p.fx, p.fy]
   end
 
@@ -159,8 +155,8 @@ class LennardSystem
     @particles.each do |p|
       @particles.each do |p2|
         next if p.id == p2.id
-        r = [p.distance(p2), 2 * RADIOUS].max
-        next if r > CUT_R
+        r = p.distance(p2)
+        next if r > CUT_R || r == 0.0
         potential += EPS * ((RM / r) ** 12 - 2 * (RM / r) ** 6)
       end
     end
