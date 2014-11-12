@@ -4,15 +4,15 @@ class SiloSystem
 
   WIDTH = 20 # m
   HEIGHT = 30 # m
-  D = 0.0
-  # D = 5.0 # m
+  # D = 0.0
+  D = 5.0 # m
 
-  RADIOUS = 0.5
-  # RADIOUS = D/10.0 # m
+  # RADIOUS = 0.5
+  RADIOUS = D/10.0 # m
   MASS = 0.01 # kg
-  KN = 10.0 ** 3
-  KT = 2.0 * KN
-  DELTA_T = 0.01 * Math.sqrt(MASS/KN)
+  KN = 10.0 ** 5
+  KT = 0.0001 * KN
+  DELTA_T = 0.5 * Math.sqrt(MASS/KN)
   DELTA_T_2 = DELTA_T ** 2
   CUT_R = 2 * RADIOUS
 
@@ -28,8 +28,8 @@ class SiloSystem
     n.times do |i|
       x = y = nil
       loop do
-        x = Random.rand((RADIOUS) .. (WIDTH - RADIOUS))
-        y = Random.rand((RADIOUS) .. (HEIGHT - RADIOUS))
+        x = Random.rand(RADIOUS .. WIDTH - RADIOUS)
+        y = Random.rand(RADIOUS .. HEIGHT - RADIOUS)
         break if @particles.all? { |p| (x-p.x)**2 + (y-p.y)**2 > (RADIOUS*2)**2 }
       end
       p = SiloParticle.new(i + 1, x, y, 0, 0, MASS, RADIOUS)
@@ -158,11 +158,25 @@ class SiloSystem
     # Wall force
     @walls.each do |wall|
       if wall.vertical?
-        p.fx += -KN * (p.x - (wall.xi - p.r).abs) if (p.x - wall.xi).abs < p.r && p.y.between?(wall.yi, wall.yf)
+        if (p.x - wall.xi).abs < p.r && p.y.between?(wall.yi, wall.yf)
+          xi = p.r - (p.x - wall.xi).abs
+          sign = sign(wall.xi - p.x)
+          p.fx += - KN * xi * sign
+          p.fy += KT * xi * p.vy * sign
+        end
       elsif wall.horizontal?
-        p.fy += -KN * (p.y - (wall.yi - p.r).abs) if (p.y - wall.yi).abs < p.r && p.x.between?(wall.xi, wall.xf)
+        if (p.y - wall.yi).abs < p.r && p.x.between?(wall.xi, wall.xf)
+          yi = p.r - (p.y - wall.yi).abs
+          sign = sign(wall.yi - p.y)
+          p.fy += - KN * yi * sign
+          p.fx += KT * yi * p.vx * sign
+        end
       end
     end
+  end
+
+  def sign(f)
+    f <=> 0
   end
 
   def height_cells
