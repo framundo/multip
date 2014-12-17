@@ -37,3 +37,4 @@ build/
 *.xyz
 *.zip
 *.DS_Store
+*.dump
